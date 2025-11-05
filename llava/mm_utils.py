@@ -1,11 +1,12 @@
-from PIL import Image
-from io import BytesIO
-import base64
-import torch
-import math
 import ast
+import base64
+import math
+from io import BytesIO
 
+import torch
+from PIL import Image
 from transformers import StoppingCriteria
+
 from llava.constants import IMAGE_TOKEN_INDEX
 
 
@@ -31,7 +32,8 @@ def select_best_resolution(original_size, possible_resolutions):
         effective_resolution = min(downscaled_width * downscaled_height, original_width * original_height)
         wasted_resolution = (width * height) - effective_resolution
 
-        if effective_resolution > max_effective_resolution or (effective_resolution == max_effective_resolution and wasted_resolution < min_wasted_resolution):
+        if effective_resolution > max_effective_resolution or (
+            effective_resolution == max_effective_resolution and wasted_resolution < min_wasted_resolution):
             max_effective_resolution = effective_resolution
             min_wasted_resolution = wasted_resolution
             best_fit = (width, height)
@@ -150,6 +152,7 @@ def load_image_from_base64(image):
 
 
 def expand2square(pil_img, background_color):
+    # 将图片填充为正方形，以长边为基准，将短边居中填充到长边。
     width, height = pil_img.size
     if width == height:
         return pil_img
@@ -166,10 +169,13 @@ def expand2square(pil_img, background_color):
 def process_images(images, image_processor, model_cfg):
     image_aspect_ratio = getattr(model_cfg, "image_aspect_ratio", None)
     new_images = []
-    if image_aspect_ratio == 'pad':
+    if image_aspect_ratio == 'pad':  # pad 代表将图片填充为正方形，llava-v1.5-7b 的方式
         for image in images:
-            image = expand2square(image, tuple(int(x*255) for x in image_processor.image_mean))
+            # 填充背景色是 CLIP image_processor 中的预定义好的平均颜色 [0.48145466, 0.4578275, 0.40821073]
+            image = expand2square(image, tuple(int(x * 255) for x in image_processor.image_mean))
+            # 转为正方形后交给 CLIP image_processor 进行后续处理，包括缩放到 3x336x336，归一化到 [0,1]，最终转为 tensor
             image = image_processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+            # image.shape = (3, 336, 336)
             new_images.append(image)
     elif image_aspect_ratio == "anyres":
         for image in images:
@@ -179,27 +185,34 @@ def process_images(images, image_processor, model_cfg):
         return image_processor(images, return_tensors='pt')['pixel_values']
     if all(x.shape == new_images[0].shape for x in new_images):
         new_images = torch.stack(new_images, dim=0)
+        # new_images.shape = (image_count, channel, height, weight) = (1, 3, 336, 336)
     return new_images
 
 
 def tokenizer_image_token(prompt, tokenizer, image_token_index=IMAGE_TOKEN_INDEX, return_tensors=None):
+    # 先从 <image> 处断开，然后分别每段 tokenize 获得 input_ids
     prompt_chunks = [tokenizer(chunk).input_ids for chunk in prompt.split('<image>')]
 
     def insert_separator(X, sep):
-        return [ele for sublist in zip(X, [sep]*len(X)) for ele in sublist][:-1]
+        # X = [[1,2,3], [4,5], [6]], sep = [-1]
+        # 结果 = [[1,2,3], [-1], [4,5], [-1], [6]]
+        return [ele for sublist in zip(X, [sep] * len(X)) for ele in sublist][:-1]
 
     input_ids = []
     offset = 0
     if len(prompt_chunks) > 0 and len(prompt_chunks[0]) > 0 and prompt_chunks[0][0] == tokenizer.bos_token_id:
+        # 如果第一个 chunk 以 BOS 开头，则保留该第一个 BOS 并通过 offset 丢弃剩余 BOS，作用是过滤因为截断分别 tokenize 导致的多余 BOS
         offset = 1
         input_ids.append(prompt_chunks[0][0])
 
+    # 如果 offset 为 0：prompt_chunks = [[], [1,2,3], [4,5], [6]], sep = [-200], input_ids = [1,2,3,-200,4,5,-200,6]
+    # 如果 offset 为 1：prompt_chunks = [[BOS,1,2,3], [BOS,4,5], [BOS,6]], sep = [-200, -200], input_ids = [BOS,1,2,3,-200,4,5,-200,6]
     for x in insert_separator(prompt_chunks, [image_token_index] * (offset + 1)):
         input_ids.extend(x[offset:])
 
     if return_tensors is not None:
         if return_tensors == 'pt':
-            return torch.tensor(input_ids, dtype=torch.long)
+            return torch.tensor(input_ids, dtype=torch.long)  # 转为 PyTorch tensor
         raise ValueError(f'Unsupported tensor type: {return_tensors}')
     return input_ids
 
@@ -211,6 +224,7 @@ def get_model_name_from_path(model_path):
         return model_paths[-2] + "_" + model_paths[-1]
     else:
         return model_paths[-1]
+
 
 class KeywordsStoppingCriteria(StoppingCriteria):
     def __init__(self, keywords, tokenizer, input_ids):
@@ -226,7 +240,7 @@ class KeywordsStoppingCriteria(StoppingCriteria):
             self.keyword_ids.append(torch.tensor(cur_keyword_ids))
         self.tokenizer = tokenizer
         self.start_len = input_ids.shape[1]
-    
+
     def call_for_batch(self, output_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
         offset = min(output_ids.shape[1] - self.start_len, self.max_keyword_len)
         self.keyword_ids = [keyword_id.to(output_ids.device) for keyword_id in self.keyword_ids]
@@ -239,7 +253,7 @@ class KeywordsStoppingCriteria(StoppingCriteria):
             if keyword in outputs:
                 return True
         return False
-    
+
     def __call__(self, output_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
         outputs = []
         for i in range(output_ids.shape[0]):
