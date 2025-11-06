@@ -47,7 +47,7 @@ while True:
     prompt = conv.get_prompt()
     # prompt: str = "A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions. USER: <image>\nDescribe this picture in detail. ASSISTANT:"
 
-    images = load_images([image_file])
+    images = load_images([image_file])  # 这里传多张图是给 batch 做准备的，每个 batch 仍然只处理一张图
     # images: List[PIL.Image.Image] = [...]
     image_sizes = [x.size for x in images]
     # image_sizes: List[Tuple[int, int]] = [(1000, 667)]

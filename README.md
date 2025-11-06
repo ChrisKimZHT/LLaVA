@@ -23,8 +23,9 @@
           - 得到 `(1, patch_count, clip_dimension)` 的特征
       - **LlavaMetaModel.mm_projector()** | 投影层对齐图片特征
         - 投影层由 `mm_projector_type` 配置，默认为 2 层 MLP，GeLU 激活
-        - 得到 `(1, patch_count, llm_dimension)` 的特征
-      - 
+        - 得到 `(image_count, patch_count, llm_dimension)` 的特征
+    - 将图片 Embedded（特征）和文本 Embedded 拼接到一起，得到 `(batch_size, seq_length, hidden_size)` 的张量
+  - ...
 
 
 
