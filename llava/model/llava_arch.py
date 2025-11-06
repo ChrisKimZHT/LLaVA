@@ -140,9 +140,9 @@ class LlavaMetaForCausalLM(ABC):
     def encode_images(self, images):
         # 使用 Vision Tower 编码图片
         image_features = self.get_model().get_vision_tower()(images)
-        # image_features.shape = (1, selected_feature_count, clip_dimension) = (1, 576, 1024)
+        # image_features.shape = (image_count, selected_feature_count, clip_dimension) = (1, 576, 1024)
         image_features = self.get_model().mm_projector(image_features)
-        # image_features.shape = (1, selected_feature_count, hidden_size) = (1, 576, 4096)
+        # image_features.shape = (image_count, selected_feature_count, hidden_size) = (1, 576, 4096)
         return image_features
 
     def prepare_inputs_labels_for_multimodal(
@@ -203,7 +203,7 @@ class LlavaMetaForCausalLM(ABC):
                 raise ValueError(f"Unexpected mm_patch_merge_type: {self.config.mm_patch_merge_type}")
         else:
             image_features = self.encode_images(images)
-            # image_features.shape = (batch_size, selected_feature_count, hidden_size) = (1, 576, 4096)
+            # image_features.shape = (image_count, selected_feature_count, hidden_size) = (1, 576, 4096)
 
         # TODO: image start / end is not implemented here to support pretraining.
         if getattr(self.config, 'tune_mm_mlp_adapter', False) and getattr(self.config, 'mm_use_im_start_end', False):
@@ -230,6 +230,7 @@ class LlavaMetaForCausalLM(ABC):
         input_ids = [cur_input_ids[cur_attention_mask] for cur_input_ids, cur_attention_mask in zip(input_ids, attention_mask)]
         labels = [cur_labels[cur_attention_mask] for cur_labels, cur_attention_mask in zip(labels, attention_mask)]
 
+        # image_features.shape = (image_count, selected_feature_count, hidden_size) = (1, 576, 4096)
         new_input_embeds = []
         new_labels = []
         cur_image_idx = 0
