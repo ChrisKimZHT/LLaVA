@@ -134,6 +134,7 @@ class LlavaLlamaForCausalLM(LlamaForCausalLM, LlavaMetaForCausalLM):
         else:
             inputs_embeds = self.get_model().embed_tokens(inputs)
 
+        # 处理好多模态输入后，调用父类的 generate 方法，使用 LLM 骨干解码生成
         return super().generate(
             position_ids=position_ids,
             attention_mask=attention_mask,

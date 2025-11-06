@@ -24,42 +24,9 @@
       - **LlavaMetaModel.mm_projector()** | 投影层对齐图片特征
         - 投影层由 `mm_projector_type` 配置，默认为 2 层 MLP，GeLU 激活
         - 得到 `(image_count, patch_count, llm_dimension)` 的特征
-    - 将图片 Embedded（特征）和文本 Embedded 拼接到一起，得到 `(batch_size, seq_length, hidden_size)` 的张量
-  - ...
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    - 将图片 Embedded（特征）和文本 Embedded 拼接到一起，得到 `(batch_size, seq_length, hidden_size)` 的张量 <u>inputs_embeds</u>
+  - **LlamaForCausalLM.generate()** | 处理好多模态输入后，传入 <u>inputs_embeds</u> 调用 LLM 骨干解码生成，得到 <u>output_ids</u>
+- **tokenizer.batch_decode()** | 解码 <u>output_ids</u> 得到模型输出
 
 # 🌋 LLaVA: Large Language and Vision Assistant
 
