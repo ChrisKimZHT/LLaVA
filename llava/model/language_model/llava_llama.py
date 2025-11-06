@@ -104,9 +104,9 @@ class LlavaLlamaForCausalLM(LlamaForCausalLM, LlavaMetaForCausalLM):
     @torch.no_grad()
     def generate(
         self,
-        inputs: Optional[torch.Tensor] = None,
-        images: Optional[torch.Tensor] = None,
-        image_sizes: Optional[torch.Tensor] = None,
+        inputs: Optional[torch.Tensor] = None,  # shape: (batch_size, seq_len) = (1, 50)
+        images: Optional[torch.Tensor] = None,  # shape: (batch_size, channel, height, weight) = (1, 3, 336, 336)
+        image_sizes: Optional[torch.Tensor] = None,  # List[Tuple[int, int]] = [(1000, 667)]
         **kwargs,
     ) -> Union[GenerateOutput, torch.LongTensor]:
         position_ids = kwargs.pop("position_ids", None)

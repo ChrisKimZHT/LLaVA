@@ -138,8 +138,11 @@ class LlavaMetaForCausalLM(ABC):
         return self.get_model().get_vision_tower()
 
     def encode_images(self, images):
+        # 使用 Vision Tower 编码图片
         image_features = self.get_model().get_vision_tower()(images)
+        # image_features.shape = (1, selected_feature_count, clip_dimension) = (1, 576, 1024)
         image_features = self.get_model().mm_projector(image_features)
+        # image_features.shape = (1, selected_feature_count, hidden_size) = (1, 576, 4096)
         return image_features
 
     def prepare_inputs_labels_for_multimodal(
@@ -150,7 +153,7 @@ class LlavaMetaForCausalLM(ABC):
         if vision_tower is None or images is None or input_ids.shape[1] == 1:
             return input_ids, position_ids, attention_mask, past_key_values, None, labels
 
-        if type(images) is list or images.ndim == 5:
+        if type(images) is list or images.ndim == 5:  # 可能是处理多图片情况
             if type(images) is list:
                 images = [x.unsqueeze(0) if x.ndim == 3 else x for x in images]
             concat_images = torch.cat([image for image in images], dim=0)
@@ -200,6 +203,7 @@ class LlavaMetaForCausalLM(ABC):
                 raise ValueError(f"Unexpected mm_patch_merge_type: {self.config.mm_patch_merge_type}")
         else:
             image_features = self.encode_images(images)
+            # image_features.shape = (batch_size, selected_feature_count, hidden_size) = (1, 576, 4096)
 
         # TODO: image start / end is not implemented here to support pretraining.
         if getattr(self.config, 'tune_mm_mlp_adapter', False) and getattr(self.config, 'mm_use_im_start_end', False):

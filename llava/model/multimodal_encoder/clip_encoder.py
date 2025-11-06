@@ -33,10 +33,11 @@ class CLIPVisionTower(nn.Module):
         self.is_loaded = True
 
     def feature_select(self, image_forward_outs):
+        # 选择指定层的特征，默认为 -2，即倒数第二层隐藏层
         image_features = image_forward_outs.hidden_states[self.select_layer]
-        if self.select_feature == 'patch':
+        if self.select_feature == 'patch':  # 选择 patch 特征，去掉 CLS Token
             image_features = image_features[:, 1:]
-        elif self.select_feature == 'cls_patch':
+        elif self.select_feature == 'cls_patch':  # 选择 CLS Token + patch 特征
             image_features = image_features
         else:
             raise ValueError(f'Unexpected select feature: {self.select_feature}')
@@ -51,8 +52,13 @@ class CLIPVisionTower(nn.Module):
                 image_feature = self.feature_select(image_forward_out).to(image.dtype)
                 image_features.append(image_feature)
         else:
+            # 调用原始 CLIP 模型对图片进行编码，CLIP 模型选用 clip-vit-large-patch14-336，24 层隐藏层
             image_forward_outs = self.vision_tower(images.to(device=self.device, dtype=self.dtype), output_hidden_states=True)
+            # image_forward_outs.shape = (layer_count, patch_count + 1, clip_dimension) = (25, 577, 1024)
+            # 这里特征数量多了 1，是因为包含了 CLIP 的第一个 Token (CLS Token)，计算方式是 (336 / 14)^2 + 1 = 577
+            # 将所有特征传入 feature_select 函数，选择所需特征
             image_features = self.feature_select(image_forward_outs).to(images.dtype)
+            # image_features.shape = (1, selected_feature_count, clip_dimension) = (1, 576, 1024)
 
         return image_features
 

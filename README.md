@@ -1,3 +1,65 @@
+**preview.py** | 生成流程：
+
+- 接受图片 `https://llava-vl.github.io/static/images/view.jpg` 与提示词 `Describe this picture in detail.`
+- 应用 ChatTemplate：`A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions. USER: <image>\nDescribe this picture in detail. ASSISTANT:`
+- 读取图片内容与图片大小 <u>image_sizes</u> `List[Tuple[int, int]]`
+- **mm_utils.process_images()** | 预处理图片
+  - 将图片填充为正方形，以长边为基准，短边居中填充到长边长度，填充背景色是 CLIP 预定义好的平均颜色
+  - **CLIPImageProcessor.preprocess()** | 使用视觉编码器的预处理模块处理图片
+    - 缩放、归一化等操作，得到 `(channel, height, weight)` 的 Tensor
+  - 堆叠所有图片，得到 `(batch_size, channel, height, weight)` 的 Tensor <u>images_tensor</u>
+- **mm_utils.tokenizer_image_token()** | Tokenize 提示词
+  - 先从 `<image>` 处断开，然后分别每段 tokenize 获得 <u>input_ids</u>
+  - 将 Tokenize 后的结果拼接在一起，中间插入特殊标记 `IMAGE_TOKEN_INDEX`，注意这里需要特判 `BOS`
+  - 得到 `(batch_size, seq_len)` 的 Tensor <u>input_ids</u>
+- **LlavaLlamaForCausalLM.generate()** | 传入 <u>input_ids</u>, <u>images_tensor</u>, <u>image_sizes</u> 开始生成
+  - **LlavaMetaForCausalLM.prepare_inputs_labels_for_multimodal()** | 构建多模态 Token
+    - **LlavaMetaForCausalLM.encode_images()** | 获得图片 Token
+      - **CLIPVisionTower.forward()** | 视觉编码器编码图片
+        - **CLIPVisionModel.forward()** | CLIP 编码图片，获得 CLIP 每一层的 hidden state `(layer_count, patch_count + 1, clip_dimension)`
+        - **CLIPVisionTower.feature_select()** | 根据多模态特征选择方式选择 hidden state
+          - 选择指定层数的 hidden state，默认为 `-2`（倒数第 2 层）
+          - 选择 hidden state 中的特征，默认为 `patch`（仅图片块特征），还可选 `cls_patch`（CLIP 的起始 Token 和图片块的特征）
+          - 得到 `(1, patch_count, clip_dimension)` 的特征
+      - **LlavaMetaModel.mm_projector()** | 投影层对齐图片特征
+        - 投影层由 `mm_projector_type` 配置，默认为 2 层 MLP，GeLU 激活
+        - 得到 `(1, patch_count, llm_dimension)` 的特征
+      - 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # 🌋 LLaVA: Large Language and Vision Assistant
 
 *Visual instruction tuning towards large language and vision models with GPT-4 level capabilities.*
